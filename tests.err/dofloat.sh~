@@ -1,3 +1,0 @@
-./cirTest -f ./tests.err/do.flt &> ./mytests/fltMy
-./ref/cirTest -f ./tests.err/do.flt &> ./mytests/fltRef
-diff ./mytests/fltMy ./mytests/fltRef

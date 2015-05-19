@@ -13,3 +13,7 @@ ref/*
 myTests/*
 
 extractFEC.sh
+
+tests.err/*
+
+tests.fraig/*
