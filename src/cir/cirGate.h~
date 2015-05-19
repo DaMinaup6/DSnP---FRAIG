@@ -1,0 +1,265 @@
+/****************************************************************************
+  FileName     [ cirGate.h ]
+  PackageName  [ cir ]
+  Synopsis     [ Define basic gate data structures ]
+  Author       [ Chung-Yang (Ric) Huang ]
+  Copyright    [ Copyleft(c) 2008-2014 LaDs(III), GIEE, NTU, Taiwan ]
+****************************************************************************/
+
+#ifndef CIR_GATE_H
+#define CIR_GATE_H
+
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include "cirDef.h"
+#include "sat.h"
+
+using namespace std;
+
+// TODO: Feel free to define your own classes, variables, or functions.
+
+class CirGate;
+class CirAIGGate;
+class CirPIGate;
+class CirPOGate;
+class CirUndefGate;
+class CirConstGate;
+
+//------------------------------------------------------------------------
+//   Define classes
+//------------------------------------------------------------------------
+class CirGate
+{
+public:
+	friend class cirMgr;
+	
+   CirGate():
+   	_gateType(TOT_GATE), _lineNo(0), _gateID(0), _ref(0), _isOpened(0), _groNum(-1), _val(0), _var(0), _fraig(0) {}
+   virtual ~CirGate() {}
+
+   // Basic access methods
+   string getTypeStr() const;
+   unsigned getLineNo() const { return _lineNo; }
+   unsigned getGateID() const { return _gateID; }
+   void setLineNo(unsigned lineNo) { _lineNo = lineNo; }
+   void setGateID(unsigned gateID) { _gateID = gateID; }
+   void setGateValue();
+   void setGateValue(size_t val) { _val = val; }
+   void setGateValueTo0() { _val = 0; }
+   void setGateValueTo1() { _val = ~0; }
+   size_t getGateValue() { return _val; }
+   virtual void setSymbol(string) = 0;
+   virtual string getSymbol() const = 0;
+
+   // Printing functions
+   virtual void printGate() const = 0;
+   void reportGate();
+   void reportFanin(int level);
+   void reportFanout(int level);
+   
+   // Input & output functions
+   virtual void setInput(CirGate*, bool, CirGate*, bool) = 0;
+   virtual CirGate* getInput0() const = 0;
+   virtual CirGate* getInput1() const = 0;
+   virtual GateList getOutput() const = 0;
+   virtual void clearOutput() = 0;
+   virtual void addOutput(CirGate*) = 0;
+   virtual void removeOutput(CirGate*) = 0;
+   virtual void setInv0(bool) = 0;
+   virtual void setInv1(bool) = 0;
+   virtual bool getisInv0() const = 0;
+   virtual bool getisInv1() const = 0;
+   bool getOutInv(CirGate* out);
+   
+   // Searching functions
+   virtual void gateDFSearch() = 0;
+   void preOrder(CirGate*, unsigned, unsigned, bool);
+   void backPreOrder(CirGate*, unsigned, unsigned, bool);
+   bool prevIsVisted();
+   bool nextIsVisted();
+   void setToOpen() { _isOpened = _globalRef; }
+   bool isOpened()  { return (_isOpened == _globalRef); }
+   
+   // Simulation functions
+   virtual void gateSim() = 0;
+   void setGroNum(int groNum) { _groNum = groNum; }
+   int  getGroNum() { return _groNum; }
+   
+   // Fraig functions
+   void setVar(const Var& v) { _var = v; }
+   Var getVar() const { return _var; }
+   void setFraiged(bool fraig) { _fraig = fraig; }
+   bool hasFraiged() const { return _fraig; }
+   
+   // Flag functions
+   static void setGlobalRef() { _globalRef++; }
+   void setToGlobalRef() { _ref = _globalRef; }
+   bool eqGlobalRef() { return (_ref == _globalRef); }
+   
+   // Helper functions
+   static string myGNum2Str(int); // Default base is 10
+
+protected:
+	GateType 		   _gateType;
+	unsigned 		   _lineNo;
+	unsigned			   _gateID;
+	static unsigned   _globalRef;
+   unsigned          _ref;
+   unsigned			   _isOpened;
+   int					_groNum;
+   size_t				_val;
+   Var               _var;
+   bool              _fraig;
+};
+
+class CirAIGGate: public CirGate
+{
+public:
+	friend class cirMgr;
+	
+	CirAIGGate(): _aigInv0(0), _aigInv1(0) { _gateType = AIG_GATE; }
+	~CirAIGGate() {}
+	void printGate() const { cout << "AIG"; }
+	void gateDFSearch();
+	void setInput(CirGate* inGate0, bool phase0, CirGate* inGate1, bool phase1);
+	void addOutput(CirGate* outGate) { _aigOut.push_back(outGate); }
+	void removeOutput(CirGate* rmGate);
+	void clearOutput() { _aigOut.clear(); }
+	void setInv0(bool isInv0) { _aigInv0 = isInv0; }
+   void setInv1(bool isInv1) { _aigInv1 = isInv1; }
+   bool getisInv0() const { return _aigInv0; }
+   bool getisInv1() const { return _aigInv1; }
+	CirGate* getInput0() const { return _aigIn0; }
+	CirGate* getInput1() const { return _aigIn1; }
+	GateList getOutput() const { return _aigOut; }
+	void gateSim();
+	void setSymbol(string symbol) {}
+	string getSymbol() const { return ""; }
+	
+private:
+	CirGate*   _aigIn0;
+	CirGate*   _aigIn1;
+	GateList   _aigOut;
+	bool       _aigInv0;
+	bool       _aigInv1;
+};
+
+class CirPIGate: public CirGate
+{
+public:
+	friend class cirMgr;
+	
+	CirPIGate(): _piSymbol("") { _gateType = PI_GATE; }
+	~CirPIGate() {}
+	void printGate() const { cout << "PI"; }
+	void gateDFSearch();
+	void setInput(CirGate* inGate0, bool phase0, CirGate* inGate1, bool phase1) {}
+	void addOutput(CirGate* outGate) { _piOut.push_back(outGate); }
+	void removeOutput(CirGate* rmGate);
+	void clearOutput() { _piOut.clear(); }
+	void setInv0(bool isInv0) {}
+   void setInv1(bool isInv1) {}
+   bool getisInv0() const { return 0; }
+   bool getisInv1() const { return 0; }
+	CirGate* getInput0() const { return 0; }
+	CirGate* getInput1() const { return 0; }
+	GateList getOutput() const { return _piOut; }
+	void gateSim();
+	void setSymbol(string symbol) { _piSymbol = symbol; }
+	string getSymbol() const { return _piSymbol; }
+
+private:
+	GateList   _piOut;
+	string     _piSymbol;
+};
+
+class CirPOGate: public CirGate
+{
+public:
+	friend class cirMgr;
+	
+	CirPOGate(): _poInv(0), _poSymbol("") { _gateType = PO_GATE; }
+	~CirPOGate() {}
+	void printGate() const { cout << "PO"; }
+	string getTypeStr() const { return "PO"; }
+	void gateDFSearch();
+	void setInput(CirGate* inGate0, bool phase0, CirGate* inGate1, bool phase1);
+	void addOutput(CirGate* outGate) {}
+	void removeOutput(CirGate* rmGate) {}
+	void clearOutput() {}
+	void setInv0(bool isInv0) { _poInv = isInv0; }
+   void setInv1(bool isInv1) {}
+   bool getisInv0() const { return _poInv; }
+   bool getisInv1() const { return 0; }
+	CirGate* getInput0() const { return _poIn; }
+	CirGate* getInput1() const { return 0; }
+	GateList getOutput() const { GateList temp; temp.resize(0); return temp; }
+	void gateSim();
+	void setSymbol(string symbol) { _poSymbol = symbol; }
+	string getSymbol() const { return _poSymbol; }
+
+private:
+	CirGate*   _poIn;
+	bool       _poInv;
+	string     _poSymbol;
+};
+
+class CirUndefGate: public CirGate
+{
+public:
+	friend class cirMgr;
+	
+	CirUndefGate() { _gateType = UNDEF_GATE; }
+	~CirUndefGate() {}
+	void printGate() const { cout << "UNDEF"; }
+	void gateDFSearch();
+	void setInput(CirGate* inGate0, bool phase0, CirGate* inGate1, bool phase1) {}
+	void addOutput(CirGate* outGate) { _unOut.push_back(outGate); }
+	void removeOutput(CirGate* rmGate);
+	void clearOutput() { _unOut.clear(); }
+	void setInv0(bool isInv0) {}
+   void setInv1(bool isInv1) {}
+   bool getisInv0() const { return 0; }
+   bool getisInv1() const { return 0; }
+	CirGate* getInput0() const { return 0; }
+	CirGate* getInput1() const { return 0; }
+	GateList getOutput() const { return _unOut; }
+	void gateSim();
+	void setSymbol(string symbol) {}
+	string getSymbol() const { return ""; }
+
+private:
+	GateList   _unOut;
+};
+
+class CirConstGate: public CirGate
+{
+public:
+	friend class cirMgr;
+	
+	CirConstGate() { _gateType = CONST_GATE; }
+	~CirConstGate() {}
+	void printGate() const { cout << "CONST"; }
+	void gateDFSearch();
+	void setInput(CirGate* inGate0, bool phase0, CirGate* inGate1, bool phase1) {}
+	void addOutput(CirGate* outGate) { _consOut.push_back(outGate); }
+	void removeOutput(CirGate* rmGate);
+	void clearOutput() { _consOut.clear(); }
+	void setInv0(bool isInv0) {}
+   void setInv1(bool isInv1) {}
+   bool getisInv0() const { return 0; }
+   bool getisInv1() const { return 0; }
+	CirGate* getInput0() const { return 0; }
+	CirGate* getInput1() const { return 0; }
+	GateList getOutput() const { return _consOut; }
+	void gateSim();
+	void setSymbol(string symbol) {}
+	string getSymbol() const { return ""; }
+
+private:
+	GateList   _consOut;
+};
+
+#endif // CIR_GATE_H

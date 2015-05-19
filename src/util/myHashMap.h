@@ -1,0 +1,293 @@
+/****************************************************************************
+  FileName     [ myHashMap.h ]
+  PackageName  [ util ]
+  Synopsis     [ Define HashMap and Cache ADT ]
+  Author       [ Chung-Yang (Ric) Huang ]
+  Copyright    [ Copyleft(c) 2009-2014 LaDs(III), GIEE, NTU, Taiwan ]
+****************************************************************************/
+
+#ifndef MY_HASH_MAP_H
+#define MY_HASH_MAP_H
+
+#include <vector>
+#include "rnGen.h"
+#include "util.h"
+
+using namespace std;
+
+// TODO: Implement your own HashMap and Cache classes.
+
+//-----------------------
+// Define HashMap classes
+//-----------------------
+// To use HashMap ADT, you should define your own HashKey class.
+// It should at least overload the "()" and "==" operators.
+
+template <class HashKey, class HashData>
+class HashMap
+{
+typedef pair<HashKey, HashData> HashNode;
+
+public:
+   HashMap() : _numBuckets(9674), _buckets(0) { init(9674); }
+   HashMap(size_t b) : _numBuckets(b), _buckets(0) { init(b); }
+   ~HashMap() { reset(); }
+
+   // [Optional] TODO: implement the HashMap<HashKey, HashData>::iterator
+   // o An iterator should be able to go through all the valid HashNodes
+   //   in the HashMap
+   // o Functions to be implemented:
+   //   - constructor(s), destructor
+   //   - operator '*': return the HashNode
+   //   - ++/--iterator, iterator++/--
+   //   - operators '=', '==', !="
+   //
+   // (_bId, _bnId) range from (0, 0) to (_numBuckets, 0)
+   //
+   class iterator
+   {
+      friend class HashMap<HashKey, HashData>;
+
+   public:
+   	iterator(HashMap<HashKey, HashData>* h = 0): _bIdx(0), _dIdx(0) { _hashData = h; }
+      iterator(const iterator& i): _bIdx(i._bIdx), _dIdx(i._dIdx) { _hashData = i._hashData; }
+      ~iterator() {}
+
+      const HashNode& operator * () const { return *(this); }
+      HashNode& operator * () { return _hashData->_buckets[_bIdx][_dIdx]; }
+      iterator& operator ++ () {
+      	// If hash table is empty or at the end()
+      	if (_hashData->empty() || _bIdx >= _hashData->_numBuckets) {
+      		_dIdx = 0; _bIdx = _hashData->_numBuckets;
+      		return *(this);
+      	}
+      	size_t buckSize = _hashData->_buckets[_bIdx].size();
+      	// find the next non-empty bucket
+      	while (buckSize == 0 && _bIdx < _hashData->_numBuckets) {
+	   		if (_bIdx != _hashData->_numBuckets - 1)
+	   			buckSize = _hashData->_buckets[++_bIdx].size();
+	   		else { _dIdx = 0; _bIdx = _hashData->_numBuckets; return *(this); }
+	   	}
+	   	// Re-check if _bIdx reaches end()
+	   	if (_bIdx >= _hashData->_numBuckets) { 
+	   		_dIdx = 0; _bIdx = _hashData->_numBuckets; 
+	   		return *(this); 
+	   	}
+	   	// Check if _dIdx reaches the end of some bucket
+      	if (this->_dIdx == buckSize - 1) {
+      		_dIdx = 0; _bIdx++; buckSize = _hashData->_buckets[_bIdx].size();
+      		while (buckSize == 0 && _bIdx < _hashData->_numBuckets) { 
+		   		if (_bIdx != _hashData->_numBuckets - 1)
+						buckSize = _hashData->_buckets[++_bIdx].size();
+		   		else { _dIdx = 0; _bIdx = _hashData->_numBuckets; return *(this); }
+		   	}
+      	}
+      	else { _dIdx++; }
+      	return *(this);
+      }
+      iterator operator ++ (int) { 
+      	iterator tempIte = *(this);		
+      	++*(this);
+      	return tempIte; 
+      }
+      iterator& operator -- () {
+      	// If hash table is empty or at the head of _buckets
+      	if (_hashData->empty() || (_bIdx == 0 && _dIdx == 0)) {
+      		_dIdx = 0; _bIdx = _hashData->_numBuckets;
+      		return *(this);
+      	}
+      	size_t buckSize = _hashData->_buckets[_bIdx].size();
+      	// find the last non-empty bucket
+      	while (buckSize == 0 && _bIdx >= 0) { 
+	   		if (_bIdx != 0)
+	   			buckSize = _hashData->_buckets[--_bIdx].size();
+	   		else { // find the first non-empty bucket
+	   			for (size_t i = 0; i < _hashData->_numBuckets; ++i)
+						if (_hashData->_buckets[i].size() > 0) {
+							_bIdx = i; _dIdx = 0; return *(this);
+						}
+	   		}
+	   	}
+	   	// Re-check if _bIdx reaches the head of _buckets
+	   	if (_bIdx < 0) { 
+	   		for (size_t i = 0; i < _hashData->_numBuckets; ++i)
+					if (_hashData->_buckets[i].size() > 0) {
+						_bIdx = i; _dIdx = 0; return *(this);
+					}
+	   	}
+	   	// Check if _dIdx reaches the head of some bucket
+      	if (this->_dIdx == 0) {
+      		_dIdx = 0; _bIdx--; buckSize = _hashData->_buckets[_bIdx].size();
+      		while (buckSize == 0 && _bIdx > 0) { 
+		   		if (_bIdx != 0)
+		   			buckSize = _hashData->_buckets[--_bIdx].size();
+		   		else { // find the first non-empty bucket
+						for (size_t i = 0; i < _hashData->_numBuckets; ++i)
+							if (_hashData->_buckets[i].size() > 0) {
+								_bIdx = i; _dIdx = 0; return *(this);
+							}
+		   		}
+		   	}
+      	}
+      	else { _dIdx--; }
+      	return *(this);
+      }
+      iterator operator -- (int) { 
+      	iterator tempIte = *(this);
+      	--*(this);
+      	return tempIte; 
+      }
+      iterator& operator = (const iterator& i) { _bIdx = i._bIdx; _dIdx = i._dIdx; return *(this); }
+      bool operator != (const iterator& i) const { return (_bIdx != i._bIdx || _dIdx != i._dIdx); }
+      bool operator == (const iterator& i) const { return (_bIdx == i._bIdx && _dIdx == i._dIdx); }
+
+   private:
+   	size_t		   		            	_bIdx;
+   	size_t		   		            	_dIdx;
+   	const HashMap<HashKey, HashData>*	_hashData;
+   };
+
+   void init(size_t b) { reset(); _numBuckets = b; _buckets = new vector<HashNode>[b]; }
+   void reset() { _numBuckets = 0; if (_buckets) { delete [] _buckets; _buckets = 0; } }
+   size_t numBuckets() const { return _numBuckets; }
+
+   vector<HashNode>& operator [] (size_t i) { return _buckets[i]; }
+   const vector<HashNode>& operator [](size_t i) const { return _buckets[i]; }
+
+   // TODO: implement these functions
+   //
+   // Point to the first valid data
+   iterator begin() const {
+   	if (empty()) return end();
+   	HashMap<HashKey, HashData>::iterator hIte;
+   	for (size_t i = 0; i < _numBuckets; ++i) {
+   		if (_buckets[i].size() > 0) {
+   			hIte._hashData = this; hIte._bIdx = i; hIte._dIdx = 0;
+   			break;
+   		}
+   	}
+   	return hIte;
+   }
+   
+   // Pass the end
+   iterator end() const {
+   	HashMap<HashKey, HashData>::iterator hIte;
+   	hIte._hashData = this; hIte._bIdx = _numBuckets; hIte._dIdx = 0;
+   	return hIte;
+   }
+   
+   // return true if no valid data
+   bool empty() const {
+   	for (size_t i = 0; i < _numBuckets; ++i)
+   		if (_buckets[i].size() > 0) return false;
+   	return true;
+   }
+   
+   // number of valid data
+   size_t size() const {
+   	size_t s = 0;
+   	for (size_t i = 0; i < _numBuckets; ++i)
+   		s += _buckets[i].size();
+   	return s;
+   }
+   
+   // check if k is in the hash...
+   // if yes, update d and return true;
+   // else return false;
+   bool check(const HashKey& k, HashData& d) { 
+   	size_t bucketID = bucketNum(k);
+   	if (_buckets[bucketID].size() == 0) return false;
+   	for (size_t i = 0; i < _buckets[bucketID].size(); ++i)
+   		if (_buckets[bucketID][i].first == k) { d = _buckets[bucketID][i].second; return true; }
+   	return false;
+   }
+   
+   // return true if inserted successfully (i.e. k is not in the hash)
+   // return false is k is already in the hash ==> will not insert
+   bool insert(const HashKey& k, const HashData& d) { 
+   	size_t bucketID = bucketNum(k);
+   	if (_buckets[bucketID].size() == 0) return false;
+   	for (size_t i = 0; i < _buckets[bucketID].size(); ++i)
+   		if (_buckets[bucketID][i].first == k) return false;
+		_buckets[bucketID].push_back(make_pair(k, d));
+		return true;
+   }
+   
+   // return true if inserted successfully (i.e. k is not in the hash)
+   // return false is k is already in the hash ==> still do the insertion
+   bool replaceInsert(const HashKey& k, const HashData& d) { 
+   	size_t bucketID = bucketNum(k);
+   	for (size_t i = 0; i < _buckets[bucketID].size(); ++i)
+   		if (_buckets[bucketID][i].first == k) { _buckets[bucketID][i].second = d; return false; }
+		_buckets[bucketID].push_back(make_pair(k, d));
+		return true;
+   }
+
+   // Need to be sure that k is not in the hash
+   void forceInsert(const HashKey& k, const HashData& d) {
+   	size_t bucketID = bucketNum(k);
+   	_buckets[bucketID].push_back(make_pair(k, d));
+   }
+
+private:
+   // Do not add any extra data member
+   size_t              _numBuckets;
+   vector<HashNode>*   _buckets;
+
+   size_t bucketNum(const HashKey& k) const { return (k() % _numBuckets); }
+};
+
+
+//---------------------
+// Define Cache classes
+//---------------------
+// To use Cache ADT, you should define your own HashKey class.
+// It should at least overload the "()" and "==" operators.
+
+template <class CacheKey, class CacheData>
+class Cache
+{
+typedef pair<CacheKey, CacheData> CacheNode;
+
+public:
+   Cache() : _size(0), _cache(0) { init(0); }
+   Cache(size_t s) : _size(0), _cache(0) { init(s); }
+   ~Cache() { reset(); }
+
+   // NO NEED to implement Cache::iterator class
+
+   // TODO: implement these functions
+   //
+   // Initialize _cache with size s
+   void init(size_t s) { reset(); _size = s; _cache = new CacheNode[s]; }
+   void reset() { _size = 0; if (_cache) { delete [] _cache; _cache = 0; } }
+
+   size_t size() const { return _size; }
+
+   CacheNode& operator [] (size_t i) { return _cache[i]; }
+   const CacheNode& operator [](size_t i) const { return _cache[i]; }
+
+   // return false if cache miss
+   bool read(const CacheKey& k, CacheData& d) const {
+   	size_t cIdx = k() % _size;
+   	if (_cache[cIdx].first == k) {
+   		d = _cache[cIdx].second;
+   		return true;
+   	}
+   	else return false; 
+   }
+   // If k is already in the Cache, overwrite the CacheData
+   void write(const CacheKey& k, const CacheData& d) {
+   	size_t cIdx = k() % _size;
+   	if (_cache[cIdx].first == k)
+   		_cache[cIdx].second = d;
+   }
+
+private:
+   // Do not add any extra data member
+   size_t       _size;
+   CacheNode*   _cache;
+};
+
+
+#endif // MY_HASH_H

@@ -1,0 +1,14 @@
+cirr sim12.aag
+cirp
+cirp -pi
+cirp -po
+cirp -n
+cirp -fl
+usage
+cirstrash
+usage
+cirsim -random
+usage
+cirp -fec
+usage
+q -f

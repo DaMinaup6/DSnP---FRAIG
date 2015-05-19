@@ -1,0 +1,15 @@
+*.o
+
+bin/*
+
+tmp/*
+
+SelfCheck
+
+Must*
+
+ref/*
+
+myTests/*
+
+extractFEC.sh
